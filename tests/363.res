@@ -1,0 +1,30 @@
+      XXXXXXXXXXXXXXXXXXXXXXX 
+    XXXXXXXXXXXXXXXXXXXXXX  XX
+   XXXXXX XXXXXXXXXX  XXXXX  X
+  XXXXXX   XXXXXX      XX XXXX
+  XXX X   XXXXXX        XX  XX
+ XXXXXXXXXXXXX           X XXX
+ XXX  XXXXXXX            X XXX
+XXX   XXXXXXX            XXXXX
+XX   XXX XXX              XXXX
+XXXXXXXXXXX               XXXX
+XXXXXXXXXX                XXXX
+XXXXXXXXXXXX        XXXXXX XXX
+XXXXXXXXXX XX     XXX    X XXX
+XXXXXXXX    XX   XX         XX
+XXXXXXX  XXX         XXXX    X
+X X XXXXXX XXX     XXX XXX   X
+XXX XXXXXXX  X     XXXX  X   X
+XX XX  XXXXXXX     XXXXXXX  XX
+XXXX   X                    X 
+XXXXXXXX                    X 
+XXXXXXXX                    XX
+ XXXXXXX       XX          XXX
+ X XXXXX   X           X   XXX
+ XXXX XX   XX         XX  XXXX
+ XXXXXXXX   XXXXXXXXXXX  XXXXX
+ XXXXXXXXX              XXX XX
+ XX X  XXXX            XXX  XX
+  X XXXXXXXXX        XX XXXXXX
+  XX XXX X  XXXX   XXX  XXXXXX
+   XXXXXXX     XXXX     X X  X

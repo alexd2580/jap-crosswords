@@ -1,0 +1,15 @@
+               
+   XXX   XXX   
+   X X   X X   
+   XXX   XXX   
+  XXXXX XXXXX  
+  X XXX X XXX  
+ XXXXXXXXXXXXX 
+XX XXX XX XXXXX
+XX XXX XX XXXXX
+XX XXXXXX XXXXX
+XXXXXXX XXXXXXX
+X XXX     X XXX
+X XXX     X XXX
+XXXXX     XXXXX
+               
