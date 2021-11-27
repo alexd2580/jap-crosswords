@@ -1,44 +1,23 @@
-#ifndef ALGORITHMS_H___
-#define ALGORITHMS_H___
+#ifndef ALGORITHMS_H_
+#define ALGORITHMS_H_
 
-#define VALID 0
-#define INVALID 1
-#define FUTILE 2
+#include "field.h"
 
-#define SPACE (-1) //for prepare
+struct algorithm_data {
+  struct num_list *numbers;
 
-#define MIN(a,b) ((a) > (b) ? (b) : (a))
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
+  int unit_len;
+  int skip_threshold;
 
-#define SOLVED 1
-#define UNSOLVED 0
+  char *const row;
+  char *const prepare;
+  char *const suggest;
 
-typedef struct num_list_ num_list;
-struct num_list_
-{
-  int length;
-  int* nums;
-  int* minStarts;
-  int* maxStarts;
-  char solved;
+  volatile int *field_updated;
+  volatile int *row_skipped;
 };
 
-typedef struct data data;
-struct data
-{
-  num_list  *        nl;
-  char      * const  row;
-  char      * const  prepare;
-  char      * const  suggest;
-};
-
-void combinatoricalForce(data const * const d);
-void bruteForce(data const * const d);
-
-extern int changeNoticed;
-extern int rowSkipped;
-extern long skipTreshold;
-
-extern int g_rowLen;
+void combinatorical(struct algorithm_data const *const);
+void brute_force(struct algorithm_data const *const);
 
 #endif
