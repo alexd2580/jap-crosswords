@@ -6,11 +6,12 @@
 
 struct num_list {
   size_t length;
-  int *nums;
+  size_t *nums;
+  size_t combinations;
 
   // These min and max values give the range of motion of a block.
-  int *min_starts;
-  int *max_starts;
+  size_t *min_starts;
+  size_t *max_starts;
 
   // Whether the entire line is solved (can be skipped in tasks).
   char solved;

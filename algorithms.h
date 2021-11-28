@@ -6,8 +6,8 @@
 struct algorithm_data {
   struct num_list *numbers;
 
-  int unit_len;
-  int skip_threshold;
+  size_t unit_len;
+  size_t skip_threshold;
 
   char *const row;
   char *const prepare;

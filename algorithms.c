@@ -1,20 +1,22 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "algorithms.h"
 #include "field.h"
 #include "macros.h"
 
 // Check if a `len` sized block can be put at position `pos`.
-__attribute__((pure)) char can_place(int pos, int len,
+__attribute__((pure)) char can_place(size_t pos, size_t len,
                                      struct algorithm_data const *const d) {
   // Check that the left side is available.
   if (pos > 0 && d->row[pos - 1] == 'X') {
     return 0;
   }
 
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     if (d->row[pos + i] == ' ') {
       return 0;
     }
@@ -28,6 +30,21 @@ __attribute__((pure)) char can_place(int pos, int len,
   return 1;
 }
 
+void print_debug_numbers(struct algorithm_data const *const d) {
+  fprintf(stderr, "Numbers:\n");
+  for (size_t i = 0; i < d->numbers->length; i++) {
+    fprintf(stderr, "%zu [%zu .. %zu]\n", d->numbers->nums[i],
+            d->numbers->min_starts[i],
+            d->numbers->max_starts[i] + d->numbers->nums[i] - 1);
+  }
+
+  fprintf(stderr, "Row:\n");
+  for (size_t i = 0; i < d->unit_len; i++) {
+    fputc(d->row[i], stderr);
+  }
+  fputc('\n', stderr);
+}
+
 // Merge the suggestion with the row data.
 // Check that we don't merge unmergable stuff.
 void merge_suggest_into_row(struct algorithm_data const *const d) {
@@ -36,7 +53,7 @@ void merge_suggest_into_row(struct algorithm_data const *const d) {
   char *row = (char *)d->row;
   numbers->solved = SOLVED;
 
-  for (int i = 0; i < d->unit_len; i++) {
+  for (size_t i = 0; i < d->unit_len; i++) {
     if (suggest[i] == '?') {
       // When there is a field that i am not sure about.
       numbers->solved = UNSOLVED;
@@ -46,8 +63,8 @@ void merge_suggest_into_row(struct algorithm_data const *const d) {
         *d->field_updated += row[i] != ' ';
         row[i] = ' ';
       } else {
-        printf("[MERGEDOWN] Cannot merge. Suggested space where row=%c.\n",
-               row[i]);
+        fprintf(stderr, "[%s] Cannot merge. Suggested space where row=%c.\n",
+                __func__, row[i]);
         numbers->solved = UNSOLVED;
         return;
       }
@@ -57,9 +74,10 @@ void merge_suggest_into_row(struct algorithm_data const *const d) {
         *d->field_updated += row[i] != 'X';
         row[i] = 'X';
       } else {
-        printf("[MERGEDOWN] At pos %d: Cannot merge. Suggested block %d where "
-               "row=%c.\n",
-               i, suggest[i], row[i]);
+        fprintf(stderr,
+                "[%s] At pos %zu: Cannot merge. Suggested block %d where "
+                "row=%c.\n",
+                __func__, i, suggest[i], row[i]);
         numbers->solved = UNSOLVED;
         return;
       }
@@ -68,13 +86,13 @@ void merge_suggest_into_row(struct algorithm_data const *const d) {
 }
 
 char merge_prepare_into_suggest(struct algorithm_data const *const d) {
-  int block = 0;
-  int block_length = 0;
+  size_t block = 0;
+  size_t block_length = 0;
   struct num_list *numbers = d->numbers;
 
   // Move over the entire row, validating block placements.
-  for (int i = 0; i < d->unit_len; i++) {
-    if (d->prepare[i] == block) {
+  for (size_t i = 0; i < d->unit_len; i++) {
+    if (d->prepare[i] == (char)block) {
       block_length++;
 
       // If it's one of these, the configuration is invalid:
@@ -86,7 +104,7 @@ char merge_prepare_into_suggest(struct algorithm_data const *const d) {
         return INVALID;
       }
     } else if (d->prepare[i] == SPACE) {
-      // Can't put a ' ' where an 'X' must be.
+      // Can't put an EMPTY where a 'X' must be.
       if (d->row[i] == 'X') {
         return INVALID;
       }
@@ -127,7 +145,7 @@ char merge_prepare_into_suggest(struct algorithm_data const *const d) {
   char futile = FUTILE;
   char prep;
 
-  for (int i = 0; i < d->unit_len; i++) {
+  for (size_t i = 0; i < d->unit_len; i++) {
     prep = d->prepare[i];
     if (d->suggest[i] == 0) {
       d->suggest[i] = prep == SPACE ? ' ' : 'X';
@@ -150,8 +168,8 @@ char merge_prepare_into_suggest(struct algorithm_data const *const d) {
 
 // Move block between `start` and `end`, recursing for next blocks.
 // All valid solutions are merged into `suggest`.
-char brute_force_(struct algorithm_data const *const d, int block, int start,
-                  int end) {
+char brute_force_(struct algorithm_data const *const d, size_t block,
+                  size_t start, size_t end) {
   struct num_list *numbers = d->numbers;
 
   // Terminate recursion by merging `prepare` into `suggest`.
@@ -159,22 +177,20 @@ char brute_force_(struct algorithm_data const *const d, int block, int start,
     return merge_prepare_into_suggest(d);
   }
 
-  int len = numbers->nums[block];
-  int min_start = numbers->min_starts[block];
-  int max_start = numbers->max_starts[block];
+  size_t len = numbers->nums[block];
+  size_t min_start = numbers->min_starts[block];
+  size_t max_start = numbers->max_starts[block];
 
   // `rest_len` gives the minimum right padding if all right blocks are moved
   // to the rightmost position.
-  int rest_len = 0;
-  for (int b = block + 1; b < numbers->length; b++) {
+  size_t rest_len = 0;
+  for (size_t b = block + 1; b < numbers->length; b++) {
     rest_len += numbers->nums[b] + 1;
   }
 
   // Write the block into `prepare` at `pos`.
-  int pos = MAX(min_start, start);
-  for (int i = pos; i < pos + len - 1; i++) {
-    d->prepare[i] = (char)block;
-  }
+  size_t pos = MAX(min_start, start);
+  memset(d->prepare + pos, (char)block, len - 1);
 
   // Iterate while the starting index is valid.
   while (pos < MIN(max_start + len, end)) {
@@ -200,27 +216,33 @@ char brute_force_(struct algorithm_data const *const d, int block, int start,
   }
 
   // Entirely remove the block from `prepare`.
-  for (int i = pos; i < pos + len - 1; i++) {
-    d->prepare[i] = SPACE;
-  }
+  memset(d->prepare + pos, SPACE, len - 1);
 
   return INVALID;
 }
 
 void brute_force(struct algorithm_data const *const d) {
-  long num_combinations = 1;
+  uint64_t num_combinations = 1;
   // Multiply the number of different positions of every block.
-  for (int i = 0; i < d->numbers->length; i++) {
-    num_combinations *=
-        1 + d->numbers->max_starts[i] - d->numbers->min_starts[i];
+  for (size_t i = 0; i < d->numbers->length; i++) {
+    size_t next = num_combinations *
+                  (1 + d->numbers->max_starts[i] - d->numbers->min_starts[i]);
+    if (next < num_combinations) {
+      num_combinations = SIZE_MAX;
+      printf("RIP\n\n\n\n\n");
+      exit(1);
+      break;
+    }
+    num_combinations = next;
   }
+  d->numbers->combinations = num_combinations;
 
   // Solve trivially.
   if (num_combinations == 1) {
     d->numbers->solved = SOLVED;
 
     // TODO What does this do?
-    for (int i = 0; i < d->unit_len; i++) {
+    for (size_t i = 0; i < d->unit_len; i++) {
       // TODO '?' are spaces?
       d->row[i] = d->row[i] == 'X' ? 'X' : ' ';
     }
@@ -234,12 +256,10 @@ void brute_force(struct algorithm_data const *const d) {
   }
 
   // Clear buffers.
-  for (int i = 0; i < d->unit_len; i++) {
-    // `prepare` uses the indices of blocks.
-    d->prepare[i] = SPACE;
-    // `suggest` uses symbols + 0, which means undefined.
-    d->suggest[i] = 0;
-  }
+  // `prepare` uses block indices and `SPACE`.
+  memset(d->prepare, SPACE, d->unit_len);
+  // `suggest` uses symbols + 0, which means undefined.
+  memset(d->suggest, 0, d->unit_len);
 
   // If brute force is not futile, merge the produced result.
   // TODO What about invalid?
@@ -248,216 +268,242 @@ void brute_force(struct algorithm_data const *const d) {
   }
 }
 
-/* void variateSingleBlocks(struct algorithm_data const *const d) { */
-/*   num_list *nl = d->nl; */
-/*   char *row = (char *)d->row; */
-/*   int minX = g_rowLen, maxX = 0; */
-/*  */
-/*   for (int i = 0; i < nl->length; i++) { */
-/*     int blockLen = nl->nums[i]; */
-/*     int minEnd = nl->minStarts[i] + blockLen; */
-/*     int maxStart = nl->maxStarts[i]; */
-/*  */
-/*     minX = MIN(minX, nl->minStarts[i]); */
-/*     maxX = MAX(maxX, nl->maxStarts[i] + blockLen); */
-/*  */
-/*     for (int p = maxStart; p < minEnd; p++) { */
-/*       changeNoticed += row[p] != 'X'; */
-/*       row[p] = 'X'; */
-/*     } */
-/*  */
-/*     if (minEnd - maxStart == blockLen) { */
-/*       if (minEnd < g_rowLen) { */
-/*         changeNoticed += row[minEnd] != ' '; */
-/*         row[minEnd] = ' '; */
-/*       } */
-/*       if (maxStart > 0) { */
-/*         changeNoticed += row[maxStart - 1] != ' '; */
-/*         row[maxStart - 1] = ' '; */
-/*       } */
-/*     } */
-/*   } */
-/*  */
-/*   for (int i = 0; i < minX; i++) { */
-/*     changeNoticed += row[i] != ' '; */
-/*     row[i] = ' '; */
-/*   } */
-/*   for (int i = maxX; i < g_rowLen; i++) { */
-/*     changeNoticed += row[i] != ' '; */
-/*     row[i] = ' '; */
-/*   } */
-/* } */
-/*  */
-/* char computePieceBounds_(struct algorithm_data const *const d, int curBlock, */
-/*                          int start, int *end) { */
-/*   num_list *const nl = d->nl; */
-/*   if (curBlock < 0 || curBlock > nl->length) { */
-/*     printf("[RECPUSHVARIATE] Error, invalid curblockId"); */
-/*     return INVALID; */
-/*   } else if (curBlock == nl->length) // basecase */
-/*     return VALID; */
-/*  */
-/*   // TODO add more recursive base cases */
-/*  */
-/*   int len = nl->nums[curBlock]; */
-/*   int restLen = 0; */
-/*   for (int b = curBlock + 1; b < nl->length; b++) */
-/*     restLen += 1 + nl->nums[b]; */
-/*  */
-/*   if (start + restLen > *end) */
-/*     return INVALID; */
-/*  */
-/*   int curPos = start; */
-/*   int curEnd; */
-/*   char current_status = INVALID; */
-/*  */
-/*   #<{(|* Find first fit for piece (ffffp) *|)}># */
-/*   do { */
-/*     if (curPos + len + restLen > *end) */
-/*       return INVALID; */
-/*  */
-/*     current_status = can_place(curPos, len, d) ? VALID : INVALID; */
-/*     curPos++; */
-/*   } while (current_status == INVALID); */
-/*  */
-/*   curPos--; */
-/*   nl->minStarts[curBlock] = MAX(nl->minStarts[curBlock], curPos); */
-/*   // notify change? */
-/*  */
-/*   #<{(|* Commit position *|)}># */
-/*   for (int i = 0; i < len; i++) */
-/*     d->prepare[curPos + i] = (char)curBlock; */
-/*  */
-/*   #<{(|* Try next piece. Content of end is modified after this call *|)}># */
-/*   computePieceBounds_(d, curBlock + 1, curPos + len + 1, end); */
-/*  */
-/*   #<{(|* Rollback *|)}># */
-/*   for (int i = 0; i < len; i++) */
-/*     d->prepare[curPos + i] = SPACE; */
-/*  */
-/*   int lastValidPos = curPos; */
-/*  */
-/*   curEnd = curPos + len; */
-/*   d->prepare[curPos] = SPACE; */
-/*   d->prepare[curEnd] = (char)curBlock; */
-/*   curPos++; */
-/*   curEnd++; */
-/*  */
-/*   int e = *end; */
-/*   while (curEnd <= e) { */
-/*     // check ground */
-/*     if (can_place(curPos, len, d)) */
-/*       lastValidPos = curPos; */
-/*     curPos++; */
-/*     curEnd++; */
-/*   } */
-/*  */
-/*   // DEBUG HERE TODO */
-/*   int newms = MIN(lastValidPos, nl->maxStarts[curBlock]); */
-/*   if (newms < nl->minStarts[curBlock]) { */
-/*     printf("Error, setting maxStart to value lower than minStart\n"); */
-/*     printf("oldMin=%d, oldMax=%d, newMax=%d\n", nl->minStarts[curBlock], */
-/*            nl->maxStarts[curBlock], newms); */
-/*   } */
-/*   nl->maxStarts[curBlock] = newms; */
-/*  */
-/*   // notifyhange? */
-/*   *end = lastValidPos - 1; */
-/*  */
-/*   return VALID; */
-/* } */
-/*  */
-/* void computePieceBounds(struct algorithm_data const *const d) { */
-/*   for (int i = 0; i < g_rowLen; i++) { */
-/*     d->prepare[i] = SPACE; */
-/*   } */
-/*   int end = g_rowLen; */
-/*  */
-/*   computePieceBounds_(d, 0, 0, &end); */
-/*   variateSingleBlocks(d); */
-/* } */
-/*  */
-/* #<{(|* */
-/*  * For this method the piece bounds must be computed. */
-/*  |)}># */
-/* void fixBlocks(struct algorithm_data const *const d) { */
-/*   char *const row = (char *)d->row; */
-/*   num_list *nl = d->nl; */
-/*  */
-/*   int streakPos; */
-/*   int streakLen; */
-/*  */
-/*   int probablyBlock; */
-/*  */
-/*   // for each active pixel */
-/*   for (int streakIter = 0; streakIter < g_rowLen; streakIter++) */
-/*     // for each streak */
-/*     if (row[streakIter] == 'X') { */
-/*       streakPos = streakIter; */
-/*       while (row[streakIter] == 'X' && streakIter < g_rowLen) */
-/*         streakIter++; */
-/*       streakLen = streakIter - streakPos; */
-/*  */
-/*       // search matching block. if multiple blocks found -> abort */
-/*       probablyBlock = -1; */
-/*       for (int block = 0; block < nl->length; block++) */
-/*         if (nl->minStarts[block] <= streakPos && // if minstarts is on the left */
-/*             nl->maxStarts[block] + nl->nums[block] >= */
-/*                 streakPos + streakLen // and endpos on the right */
-/*         ) { */
-/*           if (probablyBlock != -1) // ambiguous, next streak */
-/*           { */
-/*             probablyBlock = -2; */
-/*             break; */
-/*           } */
-/*           probablyBlock = block; */
-/*         } */
-/*  */
-/*       if (probablyBlock == -1) { */
-/*         printf("Numbers:\n"); */
-/*         for (int i = 0; i < nl->length; i++) */
-/*           printf("l:%d; min:%d; max:%d\n", nl->nums[i], nl->minStarts[i], */
-/*                  nl->maxStarts[i]); */
-/*         printf("Row:\n"); */
-/*         for (int i = 0; i < g_rowLen; i++) */
-/*           putchar(d->row[i]); */
-/*         putchar('\n'); */
-/*         printf("Streak of len %d at pos %d not matched by any block.\n", */
-/*                streakLen, streakPos); */
-/*         exit(1); */
-/*       } else if (probablyBlock != -2) // unambiguous */
-/*       { */
-/*         int b = probablyBlock; */
-/*  */
-/*         int newMi = MAX(streakPos + streakLen - nl->nums[b], nl->minStarts[b]); */
-/*         int newMa = MIN(streakPos, nl->maxStarts[b]); */
-/*  */
-/*         if (newMa < newMi) { */
-/*           printf("Numbers:\n"); */
-/*           for (int i = 0; i < nl->length; i++) */
-/*             printf("l:%d; min:%d; max:%d\n", nl->nums[i], nl->minStarts[i], */
-/*                    nl->maxStarts[i]); */
-/*           printf("Row:\n"); */
-/*           for (int i = 0; i < g_rowLen; i++) */
-/*             putchar(d->row[i]); */
-/*           putchar('\n'); */
-/*  */
-/*           printf("Error, setting invalid bounds for block %d\n", b); */
-/*           printf("oldMin=%d, oldMax=%d, newMin=%d, newMax=%d\n", */
-/*                  nl->minStarts[b], nl->maxStarts[b], newMi, newMa); */
-/*           exit(1); */
-/*         } */
-/*  */
-/*         changeNoticed += */
-/*             nl->minStarts[b] != newMi || nl->maxStarts[b] != newMa ? 1 : 0; */
-/*  */
-/*         nl->minStarts[b] = newMi; */
-/*         nl->maxStarts[b] = newMa; */
-/*       } */
-/*     } */
-/* } */
-/*  */
-/* void combinatoricalForce(struct algorithm_data const *const d) { */
-/*   computePieceBounds(d); */
-/*   fixBlocks(d); */
-/* } */
+void fill_min_max_overlaps(struct algorithm_data const *const d) {
+  char spaces[d->unit_len];
+  memset(spaces, ' ', d->unit_len);
+  char blocks[d->unit_len];
+  memset(blocks, 'X', d->unit_len);
+
+  struct num_list *numbers = d->numbers;
+  char *row = d->row;
+
+  int field_updated = 0;
+
+  // For each block...
+  size_t len, prev_max_end, min_start, max_start, min_end, max_end;
+
+  prev_max_end = 0;
+  for (size_t block = 0; block < numbers->length; block++) {
+    len = numbers->nums[block];
+    min_start = numbers->min_starts[block];
+    max_start = numbers->max_starts[block];
+    min_end = min_start + len;
+    max_end = max_start + len;
+
+    // Empty fields in front of block.
+    if (prev_max_end < min_start) {
+      size_t overlap_size = min_start - prev_max_end;
+      field_updated += memcmp(row + prev_max_end, spaces, overlap_size) != 0;
+      memset(row + prev_max_end, ' ', overlap_size);
+    }
+
+    // Overlapping min/max block areas.
+    if (max_start < min_end) {
+      // Fill overlapping areas.
+      size_t overlap_size = min_end - max_start;
+      field_updated += memcmp(row + max_start, blocks, overlap_size) != 0;
+      memset(row + max_start, 'X', overlap_size);
+    }
+
+    prev_max_end = max_end;
+  }
+
+  // Check trailing empty area.
+  if (prev_max_end < d->unit_len) {
+    size_t overlap_size = d->unit_len - prev_max_end;
+    field_updated += memcmp(row + prev_max_end, spaces, overlap_size) != 0;
+    memset(row + prev_max_end, ' ', overlap_size);
+  }
+
+  // Mark everything before the first block with a space.
+  size_t min = numbers->min_starts[0];
+  field_updated += memcmp(row, spaces, min) != 0;
+  memset(row, ' ', min);
+
+  // Mark everything after the last block with a space.
+  size_t max_index = numbers->length - 1;
+  size_t max = numbers->max_starts[max_index] + numbers->nums[max_index];
+  field_updated += memcmp(row + max, spaces, d->unit_len - max) != 0;
+  memset(row + max, ' ', d->unit_len - max);
+
+  *(d->field_updated) += field_updated;
+}
+
+void compute_block_position_bounds(struct algorithm_data const *const d) {
+  struct num_list *const numbers = d->numbers;
+
+  // TODO This doesn't check tha the combination is really valid, there may be
+  // a `valid` config where more than the given amount of blocks are fit into
+  // the line.
+
+  // Try to fit all the blocks from the left.
+  size_t start = SIZE_MAX;
+  for (size_t block = 0; block < numbers->length; block++) {
+    // Add one block of spacing.
+    // The first time we cause an integer overflow to get to 0!
+    start++;
+
+    size_t len = numbers->nums[block];
+
+    // Skip to the first in-bounds solution.
+    start = MAX(start, numbers->min_starts[block]);
+
+    // Find the leftmost fit.
+    while (!can_place(start, len, d)) {
+      start++;
+    }
+
+    // Not enough space to fit rest of blocks.
+    // TODO Remove this by fixing bugs.
+    if (start + len > d->unit_len) {
+      fprintf(stderr, "[%s] Trying to put block %zu outside field\n", __func__,
+              block);
+      print_debug_numbers(d);
+      exit(1);
+    }
+
+    // Now `start` is the leftmost valid position of `block`.
+    // Move min start position to the new min.
+    numbers->min_starts[block] = MAX(numbers->min_starts[block], start);
+
+    // Move to end of block.
+    start += len;
+  }
+
+  // Try to fit all the blocks from the right.
+  // We explicitly increase the length by 1 to simplify loop logic.
+  // The for-condition relies on integer underflow!
+  size_t end = d->unit_len + 1;
+  for (size_t block = numbers->length - 1; block != SIZE_MAX; block--) {
+    // Add one block of spacing.
+    // The first time we remove the added `1`.
+    end--;
+
+    size_t len = numbers->nums[block];
+
+    // Skip to the first in-bounds solution.
+    end = MIN(end, numbers->max_starts[block] + len);
+
+    // Find the rightmost fit.
+    while (!can_place(end - len, len, d)) {
+      end--;
+    }
+
+    // Not enough space to fit rest of blocks.
+    // TODO Remove this by fixing bugs.
+    if (end - len == SIZE_MAX) {
+      fprintf(stderr, "[%s] Trying to put block %zu outside field\n", __func__,
+              block);
+      print_debug_numbers(d);
+      exit(1);
+    }
+
+    // Now `end` is the rightmost valid end position of `block`.
+    // Move max start position to the new max.
+    numbers->max_starts[block] = MIN(numbers->max_starts[block], end - len);
+
+    // Move to start of block.
+    end -= len;
+  }
+}
+
+void match_sequences_with_blocks(struct algorithm_data const *const d) {
+  struct num_list *numbers = d->numbers;
+  char *const row = (char *)d->row;
+
+  // Try to match every sequence of 'X's within the row with a block.
+  size_t start, block;
+  for (size_t end = 0; end < d->unit_len; end++) {
+    // Ignore spaces.
+    if (row[end] != 'X') {
+      continue;
+    }
+
+    // Locate extents of this block.
+    start = end;
+    do {
+      end++;
+    } while (row[end] == 'X' && end < d->unit_len);
+
+    // Search matching block. Abort if multiple blocks match.
+    block = SIZE_MAX;
+    for (size_t b = 0; b < numbers->length; b++) {
+      /* printf("%zu %zu %zu %zu\n", numbers->min_starts[b], start, pos,
+       * numbers->max_starts[b] + numbers->nums[b]); */
+      char left = numbers->min_starts[b] > start;
+      char right = end > numbers->max_starts[b] + numbers->nums[b];
+
+      if (left || right) {
+        // Block doesn't match, skip.
+        continue;
+      }
+
+      if (block == SIZE_MAX) {
+        // Block is first to match sequence.
+        block = b;
+        continue;
+      }
+
+      // There were matches before, so we don't know which is the right block.
+      // Skip this sequence for now.
+      block = SIZE_MAX - 1;
+    }
+
+    if (block == SIZE_MAX - 1) {
+      // Multiple matches, skip this sequence.
+      continue;
+    }
+
+    if (block == SIZE_MAX) {
+      // No block matched the sequence.
+      fprintf(stderr, "[%s] Unmatched sequence [%zu .. %zu]\n", __func__, start,
+              end - 1);
+      print_debug_numbers(d);
+      exit(1);
+    }
+
+    // Found a single matching block.
+    // Adjust the bounds of the block sine we know it must match this sequence.
+    size_t min_start = numbers->min_starts[block];
+    size_t max_start = numbers->max_starts[block];
+
+    // We must check the numbers before subtracting, it might underflow.
+    size_t new_min = MAX(
+        end > numbers->nums[block] ? end - numbers->nums[block] : 0, min_start);
+    size_t new_max = MIN(start, max_start);
+
+    if (new_max < new_min) {
+      // If the new max is below the new min, then solving is impossible.
+      fprintf(
+          stderr,
+          "[%s] Invalid bounds for block %zu: [%zu .. %zu] => [%zu .. %zu]\n",
+          __func__, block, min_start, max_start, new_min, new_max);
+      print_debug_numbers(d);
+      exit(1);
+    }
+
+    // Update the block bounds.
+    *(d->field_updated) += min_start != new_min || max_start != new_max;
+    numbers->min_starts[block] = new_min;
+    numbers->max_starts[block] = new_max;
+  }
+}
+
+void combinatorical(struct algorithm_data const *const d) {
+  size_t* n = d->numbers->nums;
+  if (d->numbers->length == 5 && n[0] == 18 && n[1] == 3 && n[2] == 4 && n[3] == 4 && n[4] == 6) {
+    printf("\n\nBEFORE");
+    print_debug_numbers(d);
+    printf("\n");
+  }
+
+  compute_block_position_bounds(d);
+  fill_min_max_overlaps(d);
+  match_sequences_with_blocks(d);
+
+
+  if (d->numbers->length == 5 && n[0] == 18 && n[1] == 3 && n[2] == 4 && n[3] == 4 && n[4] == 6) {
+    print_debug_numbers(d);
+    printf("AFTER\n\n");
+  }
+}

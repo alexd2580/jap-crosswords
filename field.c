@@ -10,16 +10,16 @@
 int is_digit(char c) { return c >= '0' && c <= '9'; }
 
 void read_num_list(struct num_list *list, char *line, size_t field_length) {
-  int buffer[100];
+  size_t buffer[100];
 
   list->length = 0;
 
-  int accum = 0;
+  size_t accum = 0;
   int cont = 1;
   while (cont) {
     char c = *line;
     if (is_digit(c)) {
-      accum = accum * 10 + c - '0';
+      accum = accum * 10 + (size_t)c - '0';
     } else {
       if (accum != 0) {
         buffer[list->length] = accum;
@@ -35,12 +35,13 @@ void read_num_list(struct num_list *list, char *line, size_t field_length) {
     line++;
   }
 
-  list->nums = (int *)malloc(3 * list->length * sizeof(int));
-  memcpy(list->nums, buffer, list->length * sizeof(int));
+  list->nums = (size_t *)malloc(3 * list->length * sizeof(size_t));
+  memcpy(list->nums, buffer, list->length * sizeof(size_t));
+  list->combinations = 1;
   list->min_starts = list->nums + list->length;
   list->max_starts = list->nums + 2 * list->length;
 
-  for (int n = 0; n < list->length; n++) {
+  for (size_t n = 0; n < list->length; n++) {
     list->min_starts[n] = 0;
     list->max_starts[n] = field_length - list->nums[n];
   }
@@ -55,7 +56,7 @@ void allocate_field(struct field *field) {
   memset(field->grid_flat, '?', field->w * field->h);
 
   // Initialize convenience pointers.
-  for (int i = 0; i < field->w; i++) {
+  for (size_t i = 0; i < field->w; i++) {
     field->grid[i] = field->grid_flat + i * field->h;
   }
 
@@ -64,7 +65,7 @@ void allocate_field(struct field *field) {
   field->columns = field->sides;
   field->rows = field->sides + field->w;
 
-  for (int i = 0; i < field->w + field->h; i++) {
+  for (size_t i = 0; i < field->w + field->h; i++) {
     field->sides[i].length = 0;
     field->sides[i].nums = NULL;
   }
@@ -73,7 +74,7 @@ void allocate_field(struct field *field) {
 int init_from_file(char const *file_name, struct field *field) {
   FILE *f = fopen(file_name, "r");
   if (f == NULL) {
-    printf("[FOPEN] Could not open file\n");
+    fprintf(stderr, "[%s] Could not open file\n", __func__);
     return 1;
   }
 
@@ -83,19 +84,16 @@ int init_from_file(char const *file_name, struct field *field) {
   fgets(buffer, 100, f);
   sscanf(buffer, "%zu", &field->w);
 
-  size_t tmp_size = MAX(field->w, field->h);
-  int *tmp = (int *)alloca(tmp_size * sizeof(int));
-
   allocate_field(field);
 
   // Ingest rows.
-  for (int i = 0; i < field->h; i++) {
+  for (size_t i = 0; i < field->h; i++) {
     fgets(buffer, 100, f);
     read_num_list(field->rows + i, buffer, field->w);
   }
 
   // Ingest columns.
-  for (int i = 0; i < field->w; i++) {
+  for (size_t i = 0; i < field->w; i++) {
     fgets(buffer, 100, f);
     read_num_list(field->columns + i, buffer, field->h);
   }
@@ -108,7 +106,7 @@ void free_field(struct field *field) {
   free(field->grid);
   free(field->grid_flat);
 
-  for (int i = 0; i < field->w + field->h; i++) {
+  for (size_t i = 0; i < field->w + field->h; i++) {
     if (field->sides[i].nums != NULL) {
       free(field->sides[i].nums);
     }
@@ -118,8 +116,8 @@ void free_field(struct field *field) {
 }
 
 void print_field(struct field *field) {
-  for (int y = 0; y < field->h; y++, putchar('\n')) {
-    for (int x = 0; x < field->w; x++) {
+  for (size_t y = 0; y < field->h; y++, putchar('\n')) {
+    for (size_t x = 0; x < field->w; x++) {
       putchar(field->grid[x][y]);
     }
   }
