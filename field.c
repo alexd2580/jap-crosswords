@@ -1,77 +1,80 @@
-#include <stddef.h>
+#include <alloca.h>
+#include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include<alloca.h>
 
 #include "field.h"
 #include "macros.h"
 
-int is_digit(char c) { return c >= '0' && c <= '9'; }
+__attribute__((const)) bool is_digit(char const c) {
+  return c >= '0' && c <= '9';
+}
 
-void read_num_list(struct num_list *list, char *line, size_t field_length) {
-  size_t buffer[100];
+void allocate_blocks(blocks_t *blocks) {
+  size_t int_row_bytes = (size_t)blocks->size * sizeof(int);
+  blocks->blocks = (int *)malloc(int_row_bytes);
+  blocks->min_starts = (int *)malloc(int_row_bytes);
+  blocks->max_starts = (int *)malloc(int_row_bytes);
+}
 
-  list->length = 0;
+void free_blocks(blocks_t *blocks) {
+  free(blocks->blocks);
+  free(blocks->min_starts);
+  free(blocks->max_starts);
+}
 
-  size_t accum = 0;
-  int cont = 1;
-  while (cont) {
-    char c = *line;
-    if (is_digit(c)) {
-      accum = accum * 10 + (size_t)c - '0';
-    } else {
-      if (accum != 0) {
-        buffer[list->length] = accum;
-        accum = 0;
-        list->length++;
-      }
+// Read a single line of `data` into `blocks`.
+// Initialize trivial bounds.
+void init_blocks_from_data(blocks_t *blocks, char *data) {
+  int buffer[200];
 
-      if (c == '\0' || c == '\n') {
-        cont = 0;
-      }
+  blocks->size = 0;
+  while (*data != '\n') {
+    while (!is_digit(*data)) {
+      data++;
     }
 
-    line++;
+    buffer[blocks->size] = 0;
+    while (is_digit(*data)) {
+      buffer[blocks->size] *= 10;
+      buffer[blocks->size] += *data - '0';
+      data++;
+    }
+    blocks->size++;
   }
 
-  list->nums = (size_t *)malloc(3 * list->length * sizeof(size_t));
-  memcpy(list->nums, buffer, list->length * sizeof(size_t));
-  list->combinations = 1;
-  list->min_starts = list->nums + list->length;
-  list->max_starts = list->nums + 2 * list->length;
-
-  for (size_t n = 0; n < list->length; n++) {
-    list->min_starts[n] = 0;
-    list->max_starts[n] = field_length - list->nums[n];
+  allocate_blocks(blocks);
+  memcpy(blocks->blocks, buffer, (size_t)blocks->size * sizeof(int));
+  blocks->num_combinations = 1;
+  for (int n = 0; n < blocks->size; n++) {
+    blocks->min_starts[n] = 0;
+    blocks->max_starts[n] = 10000; // Can't do fields larger than 9999.
   }
-
-  list->solved = UNSOLVED;
+  blocks->solved = UNSOLVED;
 }
 
-void allocate_field(struct field *field) {
+void allocate_field(field_t *field) {
   // Initialize center space.
-  field->grid = (char **)malloc(field->w * sizeof(char *));
-  field->grid_flat = (char *)malloc(field->w * field->h);
-  memset(field->grid_flat, '?', field->w * field->h);
-
-  // Initialize convenience pointers.
-  for (size_t i = 0; i < field->w; i++) {
-    field->grid[i] = field->grid_flat + i * field->h;
-  }
-
-  field->sides = (struct num_list *)malloc((field->w + field->h) *
-                                           sizeof(struct num_list));
-  field->columns = field->sides;
-  field->rows = field->sides + field->w;
-
-  for (size_t i = 0; i < field->w + field->h; i++) {
-    field->sides[i].length = 0;
-    field->sides[i].nums = NULL;
-  }
+  field->flat_grid = (char *)malloc((size_t)(field->height * field->width));
+  field->rows = (blocks_t *)malloc((size_t)field->height * sizeof(blocks_t));
+  field->columns = (blocks_t *)malloc((size_t)field->width * sizeof(blocks_t));
 }
 
-int init_from_file(char const *file_name, struct field *field) {
+void free_field(field_t *field) {
+  for (int i = 0; i < field->height; i++) {
+    free_blocks(field->rows + i);
+  }
+  free(field->rows);
+  for (int i = 0; i < field->width; i++) {
+    free_blocks(field->columns + i);
+  }
+  free(field->columns);
+  free(field->flat_grid);
+}
+
+int init_field_from_file(char const *file_name, field_t *field) {
   FILE *f = fopen(file_name, "r");
   if (f == NULL) {
     fprintf(stderr, "[%s] Could not open file\n", __func__);
@@ -80,45 +83,34 @@ int init_from_file(char const *file_name, struct field *field) {
 
   char buffer[100];
   fgets(buffer, 100, f);
-  sscanf(buffer, "%zu", &field->h);
+  sscanf(buffer, "%d", &field->height);
   fgets(buffer, 100, f);
-  sscanf(buffer, "%zu", &field->w);
+  sscanf(buffer, "%d", &field->width);
 
   allocate_field(field);
 
   // Ingest rows.
-  for (size_t i = 0; i < field->h; i++) {
+  for (int i = 0; i < field->height; i++) {
     fgets(buffer, 100, f);
-    read_num_list(field->rows + i, buffer, field->w);
+    init_blocks_from_data(field->rows + i, buffer);
   }
 
   // Ingest columns.
-  for (size_t i = 0; i < field->w; i++) {
+  for (int i = 0; i < field->width; i++) {
     fgets(buffer, 100, f);
-    read_num_list(field->columns + i, buffer, field->h);
+    init_blocks_from_data(field->columns + i, buffer);
   }
+
+  memset(field->flat_grid, '?', (size_t)(field->width * field->height));
 
   fclose(f);
   return 0;
 }
 
-void free_field(struct field *field) {
-  free(field->grid);
-  free(field->grid_flat);
-
-  for (size_t i = 0; i < field->w + field->h; i++) {
-    if (field->sides[i].nums != NULL) {
-      free(field->sides[i].nums);
-    }
-  }
-
-  free(field->sides);
-}
-
-void print_field(struct field *field) {
-  for (size_t y = 0; y < field->h; y++, putchar('\n')) {
-    for (size_t x = 0; x < field->w; x++) {
-      putchar(field->grid[x][y]);
+void print_field(field_t *field) {
+  for (int y = 0; y < field->height; y++, putchar('\n')) {
+    for (int x = 0; x < field->width; x++) {
+      putchar(field->flat_grid[x * field->height + y]);
     }
   }
 }
