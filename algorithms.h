@@ -4,22 +4,25 @@
 #include "field.h"
 
 struct algorithm_data {
-  char *field;
-  int field_length;
+    char* field;
+    int field_length;
 
-  blocks_t *blocks;
+    blocks_t* blocks;
 
-  // For brute force
-  char *const prepare;
-  char *const suggest;
-  int skip_threshold;
+    // For brute force.
+    char* empty;
+    char* filled;
+    char* unknown;
+    int* const positions;
+    char* const suggest;
+    int skip_threshold;
 
-  bool updated;
-  bool skipped;
+    bool updated;
+    bool skipped;
 };
 typedef struct algorithm_data algorithm_data_t;
 
-void combinatorical(algorithm_data_t *);
-void brute_force(algorithm_data_t *);
+void combinatorical(algorithm_data_t*);
+void brute_force(algorithm_data_t*);
 
 #endif
