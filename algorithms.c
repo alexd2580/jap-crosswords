@@ -1,3 +1,5 @@
+#include <wchar.h>
+
 #include <alloca.h>
 #include <assert.h>
 #include <limits.h>
@@ -33,13 +35,13 @@ __attribute__((pure)) bool can_place(int pos, int len, algorithm_data_t const* c
 }
 
 void print_debug_blocks(algorithm_data_t const* const d) {
-    fprintf(stderr, "Blocks:\n");
+    fwprintf(stderr, L"Blocks:\n");
     for(int i = 0; i < d->blocks->size; i++) {
-        fprintf(stderr, "%d [%d .. %d]\n", d->blocks->blocks[i], d->blocks->min_starts[i],
-                d->blocks->max_starts[i] + d->blocks->blocks[i] - 1);
+        fwprintf(stderr, L"%d [%d .. %d]\n", d->blocks->blocks[i], d->blocks->min_starts[i],
+                 d->blocks->max_starts[i] + d->blocks->blocks[i] - 1);
     }
 
-    fprintf(stderr, "Field:\n");
+    fwprintf(stderr, L"Field:\n");
     for(int i = 0; i < d->field_length; i++) {
         fputc(d->field[i], stderr);
     }
@@ -61,9 +63,9 @@ void merge_solution_into_field(algorithm_data_t* d) {
         } else if(s != '\0' && (s == field[i] || field[i] == '?')) {
             field[i] = s;
         } else if(s != '\0') {
-            fprintf(stderr, "[%s] Cannot merge. Suggested '%c' where '%c'.\n", __func__, s, field[i]);
-            fprintf(stderr, "[%s] Field  : %.*s\n", __func__, d->field_length, field);
-            fprintf(stderr, "[%s] Suggest: %.*s\n", __func__, d->field_length, suggest);
+            fwprintf(stderr, L"[%s] Cannot merge. Suggested '%c' where '%c'.\n", __func__, s, field[i]);
+            fwprintf(stderr, L"[%s] Field  : %.*s\n", __func__, d->field_length, field);
+            fwprintf(stderr, L"[%s] Suggest: %.*s\n", __func__, d->field_length, suggest);
             blocks->solved = UNSOLVED;
             return;
         }
@@ -71,11 +73,76 @@ void merge_solution_into_field(algorithm_data_t* d) {
 }
 
 // Returns true if entire suggestion is unknown and it's pointless to search further.
+int attempts = 0;
 bool merge_positions_into_suggest(algorithm_data_t const* const d) {
+    attempts++;
+    if(attempts % 1000000 == 0) {
+        wprintf(L"%d\n", attempts);
+    }
+
     blocks_t* blocks = d->blocks;
     char* suggest = d->suggest;
 
+    // Validate solution against field.
     int pos = 0;
+    for(int block = 0; block < blocks->size; block++) {
+        int start = d->positions[block];
+        int len = blocks->blocks[block];
+
+        // Space.
+        while(pos < start) {
+            if(d->field[pos] == 'X') {
+                return false;
+            }
+            pos++;
+        }
+
+        // Fill block.
+        while(pos < start + len) {
+            if(d->field[pos] == ' ') {
+                return false;
+            }
+            pos++;
+        }
+    }
+
+    // Put space.
+    while(pos < d->field_length) {
+        if(d->field[pos] == 'X') {
+            return false;
+        }
+        pos++;
+    }
+
+    wprintf(L"F: %.*s\n", d->field_length, d->field);
+    wprintf(L"S: %.*s\nC: ", d->field_length, suggest);
+    pos = 0;
+    for(int block = 0; block < blocks->size; block++) {
+        int start = d->positions[block];
+        int len = blocks->blocks[block];
+
+        // Space.
+        while(pos < start) {
+            wprintf(L" ");
+            pos++;
+        }
+
+        // Fill block.
+        while(pos < start + len) {
+            wprintf(L"X");
+            pos++;
+        }
+    }
+
+    // Put space.
+    while(pos < d->field_length) {
+        wprintf(L" ");
+        pos++;
+    }
+    wprintf(L"\n");
+
+    // Move the positions over.
+    pos = 0;
     for(int block = 0; block < blocks->size; block++) {
         int start = d->positions[block];
         int len = blocks->blocks[block];
@@ -116,9 +183,28 @@ bool iterate_solutions_until_futile(algorithm_data_t* d, int block, int start) {
     }
 
     start = MAX(start, blocks->min_starts[block]);
+
+    // This can be precomputed per line.
+    int num_required = 0;
+    for(int i = start; i < d->field_length; i++) {
+        num_required += d->field[i] == 'X';
+    }
+
+    int num_available = 0;
+    for(int i = block; i < blocks->size; i++) {
+        num_available += blocks->blocks[i];
+    }
+
+    /* This check reduces the amount of solutions to check from 226K to 206K for kanzler.jc. */
+    /* For the first 129 iterations of 200x120.jc: */
+    if(num_available < num_required) {
+        return false;
+    }
+
     int len = blocks->blocks[block];
 
-    while(start <= blocks->max_starts[block]) {
+    // This condition (prev != X) reduces the amount of solutions to check from 294K to 226K for kanzler.jc.
+    while(start <= blocks->max_starts[block] && (start == 0 || d->field[start - 1] != 'X')) {
         if(can_place(start, len, d)) {
             // Recursively fit the rest of the blocks.
             d->positions[block] = start;
@@ -186,16 +272,16 @@ void brute_force(algorithm_data_t* d) {
     /* } */
 
     // Solve trivially.
-    if(num_combinations == 1) {
-        d->blocks->solved = SOLVED;
-
-        // TODO What does this do?
-        for(int i = 0; i < d->field_length; i++) {
-            // TODO '?' are spaces?
-            d->field[i] = d->field[i] == 'X' ? 'X' : ' ';
-        }
-        return;
-    }
+    /* if(num_combinations == 1) { */
+    /*     d->blocks->solved = SOLVED; */
+    /*  */
+    /*     // TODO What does this do? */
+    /*     for(int i = 0; i < d->field_length; i++) { */
+    /*         // TODO '?' are spaces? */
+    /*         d->field[i] = d->field[i] == 'X' ? 'X' : ' '; */
+    /*     } */
+    /*     return; */
+    /* } */
 
     // If too many then skip.
     if(num_combinations > d->skip_threshold) {
@@ -208,8 +294,10 @@ void brute_force(algorithm_data_t* d) {
     memset(d->suggest, 0, (size_t)d->field_length);
 
     // If brute force is not futile, merge the produced result.
-    iterate_solutions_until_futile(d, 0, 0);
-    merge_solution_into_field(d);
+    if(!iterate_solutions_until_futile(d, 0, 0)) {
+        merge_solution_into_field(d);
+        d->updated = true;
+    }
 }
 
 void fill_min_max_overlaps(algorithm_data_t* const d) {
@@ -254,6 +342,22 @@ void fill_min_max_overlaps(algorithm_data_t* const d) {
     }
 }
 
+__attribute__((pure)) int count_filled(algorithm_data_t const* const d, int start, int end) {
+    int count = 0;
+    for(int i = start; i < end; i++) {
+        count += d->field[i] == 'X';
+    }
+    return count;
+}
+
+__attribute__((pure)) int sum_blocks(algorithm_data_t const* const d, int start, int end) {
+    int count = 0;
+    for(int i = start; i < end; i++) {
+        count += d->blocks->blocks[i];
+    }
+    return count;
+}
+
 void compute_block_position_bounds(algorithm_data_t const* const d) {
     blocks_t* const blocks = d->blocks;
 
@@ -275,8 +379,16 @@ void compute_block_position_bounds(algorithm_data_t const* const d) {
 
         // Find the leftmost fit.
         // TODO in theory this can segfault if there are no valid solutions.
-        while(!can_place(start, len, d)) {
+
+        // Computing pre-post block count matches solves 200x120.
+        int num_blocks_before = sum_blocks(d, 0, block);
+        bool too_many_before = count_filled(d, 0, start) > num_blocks_before;
+        int num_blocks_after = sum_blocks(d, block + 1, d->blocks->size);
+        bool too_many_after = count_filled(d, start + len, d->field_length) > num_blocks_after;
+        while(!can_place(start, len, d) || too_many_before || too_many_after) {
             start++;
+            too_many_before = count_filled(d, 0, start) > num_blocks_before;
+            too_many_after = count_filled(d, start + len, d->field_length) > num_blocks_after;
         }
 
         // Now `start` is the leftmost valid position of `block`.
@@ -410,8 +522,8 @@ void match_sequences_with_blocks(algorithm_data_t* const d) {
 
             if(new_max < new_min) {
                 // If the new max is below the new min, then solving is impossible.
-                fprintf(stderr, "[%s] Invalid bounds for block %d: [%d .. %d] => [%d .. %d]\n", __func__, first,
-                        min_start, max_start, new_min, new_max);
+                fwprintf(stderr, L"[%s] Invalid bounds for block %d: [%d .. %d] => [%d .. %d]\n", __func__, first,
+                         min_start, max_start, new_min, new_max);
                 print_debug_blocks(d);
                 exit(1);
             }
@@ -424,7 +536,7 @@ void match_sequences_with_blocks(algorithm_data_t* const d) {
 
         // No block matched the sequence.
         else if(first > last) {
-            fprintf(stderr, "[%s] Unmatched sequence [%d .. %d]\n", __func__, seq_start, seq_start + seq_len - 1);
+            fwprintf(stderr, L"[%s] Unmatched sequence [%d .. %d]\n", __func__, seq_start, seq_start + seq_len - 1);
             print_debug_blocks(d);
             exit(1);
         }

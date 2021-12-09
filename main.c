@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <wchar.h>
+#include <locale.h>
+
 #include <alloca.h>
 #include <limits.h>
 #include <pthread.h>
@@ -66,15 +70,15 @@ void* solve_single(void* arg) {
     memset(algorithm_data.filled, 'X', buffer_size);
     memset(algorithm_data.unknown, '?', buffer_size);
 
-    printf("[%s] Synchronizing\n", __func__);
+    wprintf(L"[%s] Synchronizing\n", __func__);
 
     // Wait for start signal.
     pthread_mutex_lock(thread_data->mutex);
-    printf("[%s] Reporting idle, waiting for jobs\n", __func__);
+    wprintf(L"[%s] Reporting idle, waiting for jobs\n", __func__);
     thread_data->num_threads_idle++;
     pthread_cond_signal(thread_data->waitForResults);
     pthread_cond_wait(thread_data->waitForJobs, thread_data->mutex);
-    printf("[%s] Job received\n", __func__);
+    wprintf(L"[%s] Job received\n", __func__);
     thread_data->num_threads_idle--;
 
     while(true) {
@@ -153,6 +157,10 @@ void run_threads(thread_data_t* thread_data) {
 }
 
 void run_threads_once(thread_data_t* thread_data) {
+    if (thread_data->num_iterations == 129) {
+        exit(19);
+    }
+
     // Run horizontally.
     thread_data->field_updated = false;
     thread_data->rows_skipped = false;
@@ -165,10 +173,12 @@ void run_threads_once(thread_data_t* thread_data) {
     thread_data->next_task_id = 0;
     thread_data->is_row = false;
     run_threads(thread_data);
+
+    /* print_field(thread_data->field); */
 }
 
 void run_threads_until_fixpoint(thread_data_t* thread_data) {
-    printf("[%s] Solving ...\n", __func__);
+    wprintf(L"[%s] Solving ...\n", __func__);
 
     thread_data->skip_threshold = 10000;
 
@@ -194,24 +204,24 @@ void run_threads_until_fixpoint(thread_data_t* thread_data) {
         }
 
         /* if (old != thread_data->skip_threshold) { */
-        /*   printf("\n[%s] Setting skip threshold to %zu\n", __func__, */
+        /*   wprintf("\n[%s] Setting skip threshold to %zu\n", __func__, */
         /*          thread_data->skip_threshold); */
         /* } */
 
         thread_data->num_iterations++;
-        printf("[%s] Iteration %d\r", __func__, thread_data->num_iterations);
+        wprintf(L"[%s] Iteration %d\r", __func__, thread_data->num_iterations);
         fflush(stdout);
     } while(thread_data->field_updated || thread_data->rows_skipped);
-    printf("\n");
+    wprintf(L"\n");
 }
 
 void wait_for_all_idle(thread_data_t* thread_data) {
     // Wait for threads to wait for me.
-    printf("[%s] Synchronizing threads...\n", __func__);
+    wprintf(L"[%s] Synchronizing threads...\n", __func__);
     while(thread_data->num_threads_idle != thread_data->num_threads) {
         pthread_cond_wait(thread_data->waitForResults, thread_data->mutex);
     }
-    printf("[%s] Done\n", __func__);
+    wprintf(L"[%s] Done\n", __func__);
 }
 
 void solve_multi(field_t* field, int num_threads) {
@@ -236,11 +246,11 @@ void solve_multi(field_t* field, int num_threads) {
     // Initialize threads.
     pthread_mutex_lock(&mutex);
 
-    printf("[%s] Launching threads\n", __func__);
+    wprintf(L"[%s] Launching threads\n", __func__);
     pthread_t threads[num_threads];
     for(int i = 0; i < num_threads; i++) {
         if(pthread_create(threads + i, NULL, solve_single, (void*)&thread_data)) {
-            fprintf(stderr, "[%s] Error creating thread\n", __func__);
+            fwprintf(stderr, L"[%s] Error creating thread\n", __func__);
             return;
         }
     }
@@ -248,11 +258,11 @@ void solve_multi(field_t* field, int num_threads) {
     wait_for_all_idle(&thread_data);
 
     // First try intelligibly...
-    printf("[%s] Using combinatorical approach\n", __func__);
+    wprintf(L"[%s] Using combinatorical approach\n", __func__);
     thread_data.method = combinatorical;
     run_threads_until_fixpoint(&thread_data);
     // ... then hit it with brute force.
-    printf("[%s] Using brute force\n", __func__);
+    wprintf(L"[%s] Using brute force\n", __func__);
     thread_data.method = brute_force;
     run_threads_until_fixpoint(&thread_data);
 
@@ -262,23 +272,26 @@ void solve_multi(field_t* field, int num_threads) {
     pthread_mutex_unlock(&mutex);
 
     // Wait for threads to terminate.
-    printf("[%s] Joining threads...\n", __func__);
+    wprintf(L"[%s] Joining threads...\n", __func__);
     for(int i = 0; i < num_threads; i++) {
         if(pthread_join(threads[i], NULL)) {
-            fprintf(stderr, "[%s] Error joining thread\n", __func__);
+            fwprintf(stderr, L"[%s] Error joining thread\n", __func__);
         }
     }
-    printf("[%s] Done\n", __func__);
+    wprintf(L"[%s] Done\n", __func__);
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_CTYPE, "");
+
     int num_threads = 2;
     /* bool print_to_window = false; */
     bool print_to_console = false;
+    bool print_to_console_u = false;
     char* file_name = NULL;
 
     if(argc < 2) {
-        fprintf(stderr, "[%s] Usage: ./japCrosswords [-c] [-s] file.jc\n", __func__);
+        fwprintf(stderr, L"[%s] Usage: ./japCrosswords [-c] [-s] file.jc\n", __func__);
         exit(1);
     }
 
@@ -287,6 +300,8 @@ int main(int argc, char* argv[]) {
             num_threads = argv[i][2] - '0';
         } else if(strncmp(argv[i], "-c", 2) == 0) {
             print_to_console = true;
+        } else if(strncmp(argv[i], "-u", 2) == 0) {
+            print_to_console_u = true;
             /* } else if (strncmp(argv[i], "-s", 2) == 0) { */
             /*   print_to_window = true; */
         } else {
@@ -304,6 +319,10 @@ int main(int argc, char* argv[]) {
 
     if(print_to_console) {
         print_field(&field);
+    }
+
+    if(print_to_console_u) {
+        print_field_unicode_with_padding(&field, 20, 0);
     }
 
     /* if (print_to_window) { */
