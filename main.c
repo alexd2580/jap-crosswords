@@ -157,9 +157,9 @@ void run_threads(thread_data_t* thread_data) {
 }
 
 void run_threads_once(thread_data_t* thread_data) {
-    if (thread_data->num_iterations == 129) {
-        exit(19);
-    }
+    /* if (thread_data->num_iterations == 129) { */
+    /*     exit(19); */
+    /* } */
 
     // Run horizontally.
     thread_data->field_updated = false;

@@ -114,32 +114,32 @@ bool merge_positions_into_suggest(algorithm_data_t const* const d) {
         pos++;
     }
 
-    wprintf(L"F: %.*s\n", d->field_length, d->field);
-    wprintf(L"S: %.*s\nC: ", d->field_length, suggest);
-    pos = 0;
-    for(int block = 0; block < blocks->size; block++) {
-        int start = d->positions[block];
-        int len = blocks->blocks[block];
-
-        // Space.
-        while(pos < start) {
-            wprintf(L" ");
-            pos++;
-        }
-
-        // Fill block.
-        while(pos < start + len) {
-            wprintf(L"X");
-            pos++;
-        }
-    }
-
-    // Put space.
-    while(pos < d->field_length) {
-        wprintf(L" ");
-        pos++;
-    }
-    wprintf(L"\n");
+    /* wprintf(L"F: %.*s\n", d->field_length, d->field); */
+    /* wprintf(L"S: %.*s\nC: ", d->field_length, suggest); */
+    /* pos = 0; */
+    /* for(int block = 0; block < blocks->size; block++) { */
+    /*     int start = d->positions[block]; */
+    /*     int len = blocks->blocks[block]; */
+    /*  */
+    /*     // Space. */
+    /*     while(pos < start) { */
+    /*         wprintf(L" "); */
+    /*         pos++; */
+    /*     } */
+    /*  */
+    /*     // Fill block. */
+    /*     while(pos < start + len) { */
+    /*         wprintf(L"X"); */
+    /*         pos++; */
+    /*     } */
+    /* } */
+    /*  */
+    /* // Put space. */
+    /* while(pos < d->field_length) { */
+    /*     wprintf(L" "); */
+    /*     pos++; */
+    /* } */
+    /* wprintf(L"\n"); */
 
     // Move the positions over.
     pos = 0;
